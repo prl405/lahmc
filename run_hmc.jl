@@ -1,7 +1,7 @@
 using Random
 using Plots
 
-include("lahmc.jl")
+include("hmc.jl")
 
 function U_rough_well(X, scale1, scale2)
     cosX = cos.(X * 2 * pi / scale2)
@@ -34,7 +34,7 @@ X_init = randn(DataSize)*theta[1]
 
 samples, acceptRate = hmc(U, dU, X_init, epsilon, L, n_samples)
 
-plot(transpose(samples), xlabel="Samples", ylabel="Value")
+plt_samples = plot(transpose(samples), xlabel="Samples", ylabel="Value")
 
 display(plt_samples)
 print("Acceptance Rate: ", acceptRate)
