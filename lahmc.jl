@@ -33,6 +33,12 @@ function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
 				# current_q = Z_chain[end]
 				break
 			end
+
+			# flip the momenutm for any samples that were unable to place elsewhere
+			if j == K
+				p = -proposed_p
+			end
+
 			# counter['L%d'%(j+1)] += len(accepted_idx)
 			# state.update(accepted_idx, Z_chain[-1])
 			# update the set of active indices, so we don't do simulate trajectories for samples that are already assigned to a state
@@ -42,8 +48,7 @@ function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
             # end
 			# Z_chain[-1].active_idx = active_idx
         end
-		# flip the momenutm for any samples that were unable to place elsewhere
-		p = -proposed_p
+		
 		# counter['F'] += len(active_idx)
 		# if self.display > 1:
 		# 	print("Transition counts "),
@@ -83,15 +88,8 @@ function leap_prob_recurse(Z_chain, C, U)
 
 	cum_forward, Cl = leap_prob_recurse(Z_chain[1:end-1], C[1:end-1, 1:end-1], U)
 	C[1:end-1,1:end-1] = Cl
-	cum_reverse, Cl = leap_prob_recurse(Z_chain[end:1:-1], C[end:-1:2, end:-1:2], U)
+	cum_reverse, Cl = leap_prob_recurse(Z_chain[end:-1:2], C[end:-1:2, end:-1:2], U)
 	C[end:-1:2, end:-1:2] = Cl
-
-	# H0 = self.H(Z_chain[1])
-	# H1 = self.H(Z_chain[end])
-
-	# Ediff = H0 - H1
-	# Ediff = Ediff[:,active_idx]
-	# start_state_ratio = exp(Ediff)
 
 	H0 = U(Z_chain[1]) - 0.5 * sum(Z_chain[1].^2)
     H1 = U(Z_chain[end]) - 0.5 * sum(Z_chain[end].^2)
@@ -122,12 +120,6 @@ function leapfrog(current_q, current_p, epsilon, L, U, dU)
 
     # Final half-step for momentum
     proposed_p = p .- 0.5 * epsilon .* dU(proposed_q)
-
-    # p = -p
-
-    # # Accept or reject the new state
-    # current_H = U(current_q) - 0.5 * sum(current_p.^2)
-    # proposed_H = U(proposed_q) - 0.5 * sum(proposed_p.^2)
-    # accept = rand() < exp(current_H - proposed_H)
+	
     return proposed_q, proposed_p
 end
