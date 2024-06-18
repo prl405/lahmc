@@ -2,13 +2,14 @@
 
 function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
     samples = zeros(length(init_q), n_samples)
-	Z_chain = [init_q]
+	samples[:, 1] = init_q
 	N = length(init_q)
     # current_q = init_q
 	p = randn(N)
     accept_count = 0
 
     for i in 1:n_samples
+		Z_chain = i==1 ? [init_q] : [samples[:, i-1]]
         proposed_p = NaN
 		# use the same random number for comparison for the entire chain
 		rand_comparison = rand(1)
@@ -20,12 +21,12 @@ function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
 		# active_idx = collect(range(nbatch))
         
         for j in 1:K
-			proposed_q, proposed_p = leapfrog(Z_chain[end], p, epsilon, L, U, dU)
+			proposed_q, proposed_p = leapfrog(Z_chain[end], p, epsilon, L, dU)
 			push!(Z_chain, proposed_q)
 
 			# recursively calculate the cumulative probability of doing this many leaps
-			p_cum, Cl = leap_prob_recurse(Z_chain, C[1:j, 1:j], U)
-			C[1:j, 1:j] = Cl
+			p_cum, Cl = leap_prob_recurse(Z_chain, C[1:j+1, 1:j+1], U)
+			C[1:j+1, 1:j+1] = Cl
 			# find all the samples that did this number of leaps, and update self.state with them
 			accept = p_cum >= rand_comparison[1]
 			if accept
@@ -70,7 +71,7 @@ function leap_prob_recurse(Z_chain, C, U)
 	Recursively compute to cumulative probability of transitioning from
 	the beginning of the chain Z_chain to the end of the chain Z_chain.
 	"""
-	if isnan(C[1,end])
+	if !isnan(C[1,end])
 		# we've already visited this leaf
 		cumu = C[1,end]
 		return cumu, C
@@ -95,26 +96,26 @@ function leap_prob_recurse(Z_chain, C, U)
     H1 = U(Z_chain[end]) - 0.5 * sum(Z_chain[end].^2)
 	start_state_ratio = exp(H0 - H1)
 
-	prob = min(vcat((1 .- cum_forward, start_state_ratio*(1 .- cum_reverse)))).reshape((1,-1))
+	prob = min(1 .- cum_forward, start_state_ratio*(1 .- cum_reverse))
 	cumu = cum_forward + prob
-	C[1,end] = cumu.vec()
+	C[1,end] = cumu
 
 	return cumu, C
 end
 
-function leapfrog(current_q, current_p, epsilon, L, U, dU)
+function leapfrog(current_q, current_p, epsilon, L, dU)
 
 	p = current_p
 
     # Initial half-step for momentum
-    p = p - 0.5 * epsilon * dU(current_q)
+    p = p .- 0.5 * epsilon * dU(current_q)
 
     # Full steps for position and momentum
     proposed_q = copy(current_q)
     for i in 1:L
-        proposed_q .= proposed_q .+ epsilon .* p
+        proposed_q = proposed_q .+ epsilon .* p
         if i < L
-            p .= p .- epsilon .* dU(proposed_q)
+            p = p .- epsilon .* dU(proposed_q)
         end
     end
 
