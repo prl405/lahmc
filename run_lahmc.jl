@@ -35,7 +35,7 @@ epsilon = 1
 L = 10
 K = 4
 beta = 1
-n_samples = 500
+n_samples = 200
 
 DataSize = 2
 n_batch = 100
@@ -52,10 +52,10 @@ plt_trace = plot(transpose(lahmc.samples[:,1,:]), xlabel="Sample", ylabel="Chain
 display(plt_trace)
 print("Acceptance Rate: ", lahmc.accept_count/(lahmc.n_samples*lahmc.n_batch))
 
-# autocorrelation = calculate_autocorrelation(lahmc.samples)
+autocorrelation = calculate_autocorrelation(lahmc.samples)
 
-# gradient_evaluations = collect(0:(lahmc.dU_count/(length(autocorrelation)-1)):lahmc.dU_count)
+gradient_evaluations = collect(0:(lahmc.dU_count/(length(autocorrelation)-1)):lahmc.dU_count)
 
-# plt_ac = plot(gradient_evaluations, autocorrelation, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation")
+plt_ac = plot(gradient_evaluations, autocorrelation, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation")
 
-# display(plt_ac)
+display(plt_ac)
