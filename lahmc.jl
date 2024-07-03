@@ -42,7 +42,7 @@ function sample!(lahmc::LAHMC)
             push!(q_chain, proposed_q)
             push!(p_chain, proposed_p)
             
-            p_cum, Cl = leap_prob_recurse(q_chain, C[1:j+1, 1:j+1, active_idx], active_idx, lahmc.U)
+            p_cum, Cl = leap_prob_recurse(q_chain, p_chain, C[1:j+1, 1:j+1, active_idx], active_idx, lahmc.U)
             C[1:j+1, 1:j+1, active_idx] = Cl
             
             accepted_idx = active_idx[vcat(p_cum...) .>= rand_comparison[active_idx]]
@@ -70,7 +70,7 @@ function sample!(lahmc::LAHMC)
     end
 end
 
-function leap_prob_recurse(q_chain, C, active_idx, U)
+function leap_prob_recurse(q_chain, p_chain, C, active_idx, U)
 	"""
 	Recursively compute to cumulative probability of transitioning from
 	the beginning of the chain q_chain to the end of the chain q_chain.
@@ -83,8 +83,8 @@ function leap_prob_recurse(q_chain, C, active_idx, U)
     
 	if length(q_chain) == 2
 		# the two states are one apart
-		H0 = U(q_chain[1]) .- 0.5 * sum(q_chain[1].^2, dims=1)
-    	H1 = U(q_chain[2]) .- 0.5 * sum(q_chain[2].^2, dims=1)
+		H0 = U(q_chain[1]) .- 0.5 * sum(p_chain[1].^2, dims=1)
+    	H1 = U(q_chain[2]) .- 0.5 * sum(p_chain[2].^2, dims=1)
         diff = H0 .- H1
         p_acc = ones((1, size(diff, 2)))
 		p_acc[diff.<0] = exp.(diff[diff.<0]) 
@@ -94,13 +94,13 @@ function leap_prob_recurse(q_chain, C, active_idx, U)
 		return p_acc, C
     end
 
-	cum_forward, Cl = leap_prob_recurse(q_chain[1:end-1], C[1:end-1, 1:end-1, :], active_idx, U)
+	cum_forward, Cl = leap_prob_recurse(q_chain[1:end-1], p_chain[1:end-1], C[1:end-1, 1:end-1, :], active_idx, U)
 	C[1:end-1,1:end-1, :] = Cl
-	cum_reverse, Cl = leap_prob_recurse(q_chain[end:-1:2], C[end:-1:2, end:-1:2, :], active_idx, U)
+	cum_reverse, Cl = leap_prob_recurse(q_chain[end:-1:2], p_chain[end:-1:2], C[end:-1:2, end:-1:2, :], active_idx, U)
 	C[end:-1:2, end:-1:2, :] = Cl
 
-	H0 = U(q_chain[1]) .- 0.5 * sum(q_chain[1].^2, dims=1)
-    H1 = U(q_chain[end]) .- 0.5 * sum(q_chain[end].^2, dims=1)
+	H0 = U(q_chain[1]) .- 0.5 * sum(p_chain[1].^2, dims=1)
+    H1 = U(q_chain[end]) .- 0.5 * sum(p_chain[end].^2, dims=1)
     diff = H0 .- H1
     diff = diff[:, active_idx]
 	start_state_ratio = exp.(diff) # This sometimes may be Inf. Combine with cum_reverse = 1
@@ -110,12 +110,11 @@ function leap_prob_recurse(q_chain, C, active_idx, U)
     #    throw(error("Multiplying 0 by Inf error."))
     # end
 
-    for x in eachindex(start_state_ratio)
-        if (start_state_ratio[x] == Inf) & (cum_reverse[x] == 1.0)
-            start_state_ratio[x] = 0
-        end
-    end
-
+    # for x in eachindex(start_state_ratio)
+    #     if (start_state_ratio[x] == Inf) & (cum_reverse[x] == 1.0)
+    #         start_state_ratio[x] = 0
+    #     end
+    # end
 
 	prob = minimum(vcat(1 .- cum_forward, start_state_ratio.*(1 .- cum_reverse)), dims=1)
 	cumu = cum_forward + prob
