@@ -21,24 +21,25 @@ function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
 		# active_idx = collect(range(nbatch))
         
         for j in 1:K
-			proposed_q, proposed_p = leapfrog(q_chain[end], p, epsilon, L, dU)
+			proposed_q, proposed_p = leapfrog(q_chain[end], p_chain[end], epsilon, L, dU)
 			push!(q_chain, proposed_q)
 			push!(p_chain, proposed_p)
 
 			# recursively calculate the cumulative probability of doing this many leaps
-			p_cum, Cl = leap_prob_recurse(q_chain, C[1:j+1, 1:j+1], U)
+			p_cum, Cl = leap_prob_recurse(q_chain, p_chain, C[1:j+1, 1:j+1], U)
 			C[1:j+1, 1:j+1] = Cl
 			# find all the samples that did this number of leaps, and update self.state with them
 			accept = p_cum >= rand_comparison[1]
 			if accept
 				accept_count += 1
 				samples[:, i] = q_chain[end]
+				p = p_chain[end]
 				break
 			end
 
 			# flip the momenutm for any samples that were unable to place elsewhere
 			if (j == K) & (!accept)
-				p = -proposed_p
+				p = -p
 				samples[:, i] = q_chain[1]
 			end
         end
@@ -51,7 +52,7 @@ function lahmc(U, dU, init_q, epsilon, L, K, beta, n_samples)
     return samples, acceptRate
 end
 
-function leap_prob_recurse(Z_chain, C, U)
+function leap_prob_recurse(q_chain, p_chain, C, U)
 	"""
 	Recursively compute to cumulative probability of transitioning from
 	the beginning of the chain Z_chain to the end of the chain Z_chain.
@@ -61,10 +62,10 @@ function leap_prob_recurse(Z_chain, C, U)
 		cumu = C[1,end]
 		return cumu, C
     end
-	if length(Z_chain) == 2
+	if length(q_chain) == 2
 		# the two states are one apart
-		H0 = U(Z_chain[1]) - 0.5 * sum(Z_chain[1].^2)
-    	H1 = U(Z_chain[2]) - 0.5 * sum(Z_chain[2].^2)
+		H0 = U(q_chain[1]) - 0.5 * sum(p_chain[1].^2)
+    	H1 = U(q_chain[2]) - 0.5 * sum(p_chain[2].^2)
 		p_acc = exp(H0 - H1)
 		# p_acc = p_acc[:,active_idx]
 		#print C.shape, C[0,-1,:].shape, p_acc.shape, p_acc.ravel().shape
@@ -72,13 +73,13 @@ function leap_prob_recurse(Z_chain, C, U)
 		return p_acc, C
     end
 
-	cum_forward, Cl = leap_prob_recurse(Z_chain[1:end-1], C[1:end-1, 1:end-1], U)
+	cum_forward, Cl = leap_prob_recurse(q_chain[1:end-1], p_chain[1:end-1], C[1:end-1, 1:end-1], U)
 	C[1:end-1,1:end-1] = Cl
-	cum_reverse, Cl = leap_prob_recurse(Z_chain[end:-1:2], C[end:-1:2, end:-1:2], U)
+	cum_reverse, Cl = leap_prob_recurse(q_chain[end:-1:2], p_chain[end:-1:2], C[end:-1:2, end:-1:2], U)
 	C[end:-1:2, end:-1:2] = Cl
 
-	H0 = U(Z_chain[1]) - 0.5 * sum(Z_chain[1].^2)
-    H1 = U(Z_chain[end]) - 0.5 * sum(Z_chain[end].^2)
+	H0 = U(q_chain[1]) - 0.5 * sum(p_chain[1].^2)
+    H1 = U(q_chain[end]) - 0.5 * sum(p_chain[end].^2)
 	start_state_ratio = exp(H0 - H1)
 
 	prob = min(1 .- cum_forward, start_state_ratio*(1 .- cum_reverse))
