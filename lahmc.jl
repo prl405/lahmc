@@ -99,35 +99,35 @@ function leap_prob_recurse(q_chain, p_chain, C, U)
 	return cumu, C
 end
 
-# function leapfrog(current_q, current_p, epsilon, L, dU)
-# 	proposed_p = current_p
-#     proposed_q = current_q
-
-#     for i in 1:L
-#         proposed_p = proposed_p .- 0.5 * epsilon * dU(proposed_q)
-#         proposed_q = proposed_q .+ epsilon .* proposed_p
-#         proposed_p = proposed_p .- 0.5 * epsilon .* dU(proposed_q)
-#     end
-#     return proposed_q, proposed_p
-# end
-
 function leapfrog(current_q, current_p, epsilon, L, dU)
 	proposed_p = current_p
     proposed_q = current_q
 
-    # Initial half-step for momentum
-    proposed_p = proposed_p .- 0.5 * epsilon * dU(proposed_q)
-
-    # Full steps for position and momentum    
     for i in 1:L
-        proposed_q = proposed_q .+ epsilon .* proposed_p
-        if i < L
-            proposed_p = proposed_p .- epsilon .* dU(proposed_q)
-        end
+        proposed_p = proposed_p - 0.5 * epsilon * dU(proposed_q)
+        proposed_q = proposed_q + epsilon .* proposed_p
+        proposed_p = proposed_p - 0.5 * epsilon * dU(proposed_q)
     end
-
-    # Final half-step for momentum
-    proposed_p = proposed_p .- 0.5 * epsilon .* dU(proposed_q)
-	
     return proposed_q, proposed_p
 end
+
+# function leapfrog(current_q, current_p, epsilon, L, dU)
+# 	proposed_p = current_p
+#     proposed_q = current_q
+
+#     # Initial half-step for momentum
+#     proposed_p = proposed_p .- 0.5 * epsilon * dU(proposed_q)
+
+#     # Full steps for position and momentum    
+#     for i in 1:L
+#         proposed_q = proposed_q .+ epsilon .* proposed_p
+#         if i < L
+#             proposed_p = proposed_p .- epsilon .* dU(proposed_q)
+#         end
+#     end
+
+#     # Final half-step for momentum
+#     proposed_p = proposed_p .- 0.5 * epsilon .* dU(proposed_q)
+	
+#     return proposed_q, proposed_p
+# end

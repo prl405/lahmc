@@ -3,20 +3,9 @@ using Plots
 using Statistics
 
 include("lahmc.jl")
+include("distributions.jl")
 
 global dU_count = 0
-
-function U_rough_well(X, scale1, scale2)
-    cosX = cos.(X * 2 * pi / scale2)
-    E = sum((X.^2) / (2 * scale1^2) .+ cosX)
-    return E
-end
-
-function dU_rough_well(X, scale1, scale2)
-    sinX = sin.(X * 2 * pi / scale2)
-    dEdX = X ./ scale1^2 .- sinX * 2 * pi ./ scale2
-    return dEdX
-end
 
 function U(X)
     return U_rough_well(X, theta[1], theta[2])
@@ -41,10 +30,10 @@ end
 
 function calculate_looped_autocorrelation(samples)
     n_samples = size(samples, 3)
-    acf = zeros(n_samples)
+    acf = zeros(n_samples-1)
     acf[1] = mean(samples.^2)
     
-    for lag in 2:(n_samples-1)
+    for lag in 2:(n_samples-2)
         acf[lag] = mean(vcat(samples[:, :, 1:end-lag] .* samples[:, :, lag+1:end]...))
     end
     
@@ -67,25 +56,48 @@ function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
     return samples
 end
 
+# Input Parameters
 theta = [100, 4]
 epsilon = 1
 L = 10
 beta = 1
-n_samples = 200
+n_samples = 1000
 n_param = 2
+n_chains = 10
 
-autocorrelation = calculate_looped_autocorrelation(sample_loop(100, U, dU, epsilon, L, 4, beta, n_param, n_samples))
+# LAHMC
 
-gradient_evaluations = collect(0:(dU_count/(length(autocorrelation)-1)):dU_count)
+lahmc_samples = sample_loop(n_chains, U, dU, epsilon, L, 4, beta, n_param, n_samples)
+autocorrelation_lahmc = calculate_looped_autocorrelation(lahmc_samples)
 
-plt_ac = plot(gradient_evaluations, autocorrelation, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation")
+gradient_evaluations_lahmc = LinRange(0, dU_count/n_chains, length(autocorrelation_lahmc))
+
+plt_lahmc_ac = plot(gradient_evaluations_lahmc, autocorrelation_lahmc, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation", label="LAHMC")
+
+
+# HMC
 
 dU_count = 0
 
-autocorrelation = calculate_looped_autocorrelation(sample_loop(100, U, dU, epsilon, L, 1, beta, n_param, n_samples))
+hmc_samples = sample_loop(n_chains, U, dU, epsilon, L, 1, beta, n_param, n_samples)
+autocorrelation_hmc = calculate_looped_autocorrelation(hmc_samples)
 
-gradient_evaluations = collect(0:(dU_count/(length(autocorrelation)-1)):dU_count)
+gradient_evaluations_hmc = LinRange(0, dU_count/n_chains, length(autocorrelation_hmc))
 
-plt_hmc_ac = plot!(gradient_evaluations, autocorrelation)
+plt_hmc_ac = plot!(gradient_evaluations_hmc, autocorrelation_hmc, label="HMC")
 
-display(plt_ac)
+display(plt_lahmc_ac)
+
+post = fill(NaN, 1000)
+for k in 1:1000 
+    post[k] = U_rough_well(rand(2)*100) 
+end
+
+post_lahmc = fill(NaN, 1000)
+for k in 1:1000 
+    post_lahmc[k] = U_rough_well(lahmc_samples[:, 1, k]) 
+end
+
+sc_post = histogram(post, bins=30, alpha=0.5, title="Samples on posterior", xlabel="Sample", ylabel="Value", label="True Posterior")
+sc_lahmc_post = histogram!(post_lahmc, bins=30, alpha=0.5, label="Sampled Posterior")
+display(sc_post)
