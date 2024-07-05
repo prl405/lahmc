@@ -61,9 +61,9 @@ theta = [100, 4]
 epsilon = 1
 L = 10
 beta = 1
-n_samples = 1000
+n_samples = 200
 n_param = 2
-n_chains = 10
+n_chains = 100
 
 # LAHMC
 
@@ -88,13 +88,13 @@ plt_hmc_ac = plot!(gradient_evaluations_hmc, autocorrelation_hmc, label="HMC")
 
 display(plt_lahmc_ac)
 
-post = fill(NaN, 1000)
-for k in 1:1000 
+post = fill(NaN, n_samples)
+for k in 1:n_samples 
     post[k] = U_rough_well(rand(2)*100) 
 end
 
-post_lahmc = fill(NaN, 1000)
-for k in 1:1000 
+post_lahmc = fill(NaN, n_samples)
+for k in 1:n_samples 
     post_lahmc[k] = U_rough_well(lahmc_samples[:, 1, k]) 
 end
 
