@@ -33,7 +33,7 @@ function sample!(lahmc::LAHMC)
 		C = ones((lahmc.K+1, lahmc.K+1))*NaN
         
         for j in 1:lahmc.K
-			proposed_q, proposed_p = leapfrog(q_chain[end], p_chain[end], lahmc.epsilon, lahmc.L, lahmc.dU)
+			proposed_q, proposed_p, lahmc.dU_count = leapfrog(q_chain[end], p_chain[end], lahmc.epsilon, lahmc.L, lahmc.dU, lahmc.dU_count)
 			push!(q_chain, proposed_q)
 			push!(p_chain, proposed_p)
 
@@ -76,9 +76,10 @@ function leap_prob_recurse(q_chain, p_chain, C, U)
     end
 	if length(q_chain) == 2
 		# the two states are one apart
-		H0 = U(q_chain[1]) + 0.5 * sum(p_chain[1].^2)
-    	H1 = U(q_chain[2]) + 0.5 * sum(p_chain[2].^2)
-		p_acc = exp(H0 - H1)
+		H11 = U(q_chain[1]) + (0.5 * sum(p_chain[1].^2))
+    	H2 = U(q_chain[2]) + (0.5 * sum(p_chain[2].^2))
+		Ediff = H11 - H2
+		p_acc = Ediff<0 ? exp(Ediff) : 1
 		C[1,end] = p_acc
 		return p_acc, C
     end
@@ -88,27 +89,28 @@ function leap_prob_recurse(q_chain, p_chain, C, U)
 	cum_reverse, Cl = leap_prob_recurse(q_chain[end:-1:2], p_chain[end:-1:2], C[end:-1:2, end:-1:2], U)
 	C[end:-1:2, end:-1:2] = Cl
 
-	H0 = U(q_chain[1]) + 0.5 * sum(p_chain[1].^2)
-    H1 = U(q_chain[end]) + 0.5 * sum(p_chain[end].^2)
-	start_state_ratio = exp(H0 - H1)
+	H1 = U(q_chain[1]) + (0.5 * sum(p_chain[1].^2))
+    Hend = U(q_chain[end]) + (0.5 * sum(p_chain[end].^2))
+	start_state_ratio = exp(H1 - Hend)
 
-	prob = min(1 .- cum_forward, start_state_ratio*(1 .- cum_reverse))
+	prob = min(1 - cum_forward, start_state_ratio*(1 - cum_reverse))
 	cumu = cum_forward + prob
 	C[1,end] = cumu
 
 	return cumu, C
 end
 
-function leapfrog(current_q, current_p, epsilon, L, dU)
+function leapfrog(current_q, current_p, epsilon, L, dU, dU_count)
 	proposed_p = current_p
     proposed_q = current_q
 
     for i in 1:L
-        proposed_p = proposed_p - 0.5 * epsilon * dU(proposed_q)
-        proposed_q = proposed_q + epsilon .* proposed_p
-        proposed_p = proposed_p - 0.5 * epsilon * dU(proposed_q)
+        proposed_p = proposed_p - (0.5 * epsilon * dU(proposed_q))
+        proposed_q = proposed_q + (epsilon * proposed_p)
+        proposed_p = proposed_p - (0.5 * epsilon * dU(proposed_q))
+		dU_count +=1
     end
-    return proposed_q, proposed_p
+    return proposed_q, proposed_p, dU_count
 end
 
 # function leapfrog(current_q, current_p, epsilon, L, dU)
