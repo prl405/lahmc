@@ -8,15 +8,16 @@ mutable struct LAHMC
     n_param::Int
     n_samples::Int
     samples::Array{Float64}
-    accept_count::Int
     dU_count::Int
+	transitions::Array{Int64}
 end
 
 function LAHMC(U, dU, init_q, epsilon, L, K, beta, n_samples)
 	n_param = length(init_q)
     samples = fill(NaN, n_param, n_samples)
 	samples[:, 1] = init_q
-    LAHMC(U, dU, epsilon, L, K, beta, n_param, n_samples, samples, 0, 0)
+	transitions = fill(0, K+1)
+    LAHMC(U, dU, epsilon, L, K, beta, n_param, n_samples, samples, 0, transitions)
 end
 
 function sample!(lahmc::LAHMC)
@@ -26,7 +27,7 @@ function sample!(lahmc::LAHMC)
 		q_chain = [lahmc.samples[:, i]]
 		p_chain = [p]
 		# use the same random number for comparison for the entire chain
-		rand_comparison = rand(1)
+		rand_comparison = rand(1)[1]
 		# the current cumulative probability of acceptance
 		p_cum = 0
 		# the cumulative probability matrix, so we only need to visit each leaf once when recursing
@@ -41,9 +42,9 @@ function sample!(lahmc::LAHMC)
 			p_cum, Cl = leap_prob_recurse(q_chain, p_chain, C[1:j+1, 1:j+1], lahmc.U)
 			C[1:j+1, 1:j+1] = Cl
 			
-			accept = p_cum >= rand_comparison[1]
+			accept = p_cum >= rand_comparison
 			if accept
-				lahmc.accept_count += 1
+				lahmc.transitions[j] += 1
 				lahmc.samples[:, i+1] = q_chain[end]
 				p = p_chain[end]
 				break
@@ -51,6 +52,7 @@ function sample!(lahmc::LAHMC)
 
 			# flip the momenutm
 			if (j == lahmc.K) & (!accept)
+				lahmc.transitions[j+1] += 1
 				p = -p
 				lahmc.samples[:, i+1] = q_chain[1]
 			end
@@ -60,8 +62,7 @@ function sample!(lahmc::LAHMC)
 		p = p*sqrt(1-lahmc.beta) + randn(lahmc.n_param)*sqrt(lahmc.beta)  
     end
 
-    acceptRate = lahmc.accept_count / lahmc.n_samples
-    return lahmc.samples, acceptRate
+    return lahmc
 end
 
 function leap_prob_recurse(q_chain, p_chain, C, U)
@@ -112,24 +113,3 @@ function leapfrog(current_q, current_p, epsilon, L, dU, dU_count)
     end
     return proposed_q, proposed_p, dU_count
 end
-
-# function leapfrog(current_q, current_p, epsilon, L, dU)
-# 	proposed_p = current_p
-#     proposed_q = current_q
-
-#     # Initial half-step for momentum
-#     proposed_p = proposed_p .- 0.5 * epsilon * dU(proposed_q)
-
-#     # Full steps for position and momentum    
-#     for i in 1:L
-#         proposed_q = proposed_q .+ epsilon .* proposed_p
-#         if i < L
-#             proposed_p = proposed_p .- epsilon .* dU(proposed_q)
-#         end
-#     end
-
-#     # Final half-step for momentum
-#     proposed_p = proposed_p .- 0.5 * epsilon .* dU(proposed_q)
-	
-#     return proposed_q, proposed_p
-# end

@@ -37,21 +37,42 @@ function calculate_looped_autocorrelation(samples)
     return acf / acf[1]
 end
 
+function plot_histograms(U::Function, lahmc_samples, n_samples::Int, title::String; bin_width=0.2, alpha=0.5, hmc_samples=nothing)
+    post_true = fill(NaN, n_samples)
+    post_lahmc = fill(NaN, n_samples)
+    post_hmc = fill(NaN, n_samples)
+
+    for k in 1:n_samples 
+        post_true[k] = U(rand(2)*100) # Only works for Rough Well
+        post_lahmc[k] = U(lahmc_samples[:, 1, k])
+        if !isnothing(hmc_samples)
+            post_hmc[k] = U(hmc_samples[:, 1, k])
+        end 
+    end
+
+    hist_post = histogram(post_true, bin_width=bin_width, alpha=alpha, title=title, xlabel="Sample", ylabel="Frequency", label="True Posterior")
+    histogram!(post_lahmc, bin_witdh=bin_width, alpha=alpha, label="LAHMC Sampled Posterior")
+    if !isnothing(hmc_samples)
+        histogram!(post_hmc, bin_witdh=bin_width, alpha=alpha, label="HMC Sampled Posterior")
+    end
+    display(hist_post)
+end
+
 function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
     theta = [100, 4]
     samples = fill(NaN, n_param, n_chains, n_samples)
-    avg_accptRate = fill(NaN, n_chains)
+    avg_transitions = fill(0, K+1, n_chains)
     grad_evals = 0
 
     for i in 1:n_chains
         q_init = randn(n_param)*theta[1]
         lahmc = LAHMC(U, dU, q_init, epsilon, L, K, beta, n_samples)
-        chain, acceptRate = sample!(lahmc)
-        samples[:,i,:] = chain
-        avg_accptRate[i] = acceptRate
-        grad_evals += lahmc.dU_count
+        result = sample!(lahmc)
+        samples[:,i,:] = result.samples
+        avg_transitions[:, i] = result.transitions
+        grad_evals += result.dU_count
     end
-    print("Average Acceptance Rate: ", mean(avg_accptRate))   
+    print("Average Acceptance Rate: ", mean(sum(avg_transitions[1:K,:]./n_samples, dims=1), dims=2)[1,1]) 
     return samples, grad_evals
 end
 
@@ -60,9 +81,9 @@ theta = [100, 4]
 epsilon = 1
 L = 10
 beta = 0.1
-n_samples = 200
+n_samples = 10000
 n_param = 2
-n_chains = 100
+n_chains = 10
 
 # LAHMC
 
@@ -85,16 +106,4 @@ plt_hmc_ac = plot!(gradient_evaluations_hmc, autocorrelation_hmc, label="HMC")
 
 display(plt_lahmc_ac)
 
-post = fill(NaN, n_samples)
-for k in 1:n_samples 
-    post[k] = U_rough_well(rand(2)*100) 
-end
-
-post_lahmc = fill(NaN, n_samples)
-for k in 1:n_samples 
-    post_lahmc[k] = U_rough_well(lahmc_samples[:, 1, k]) 
-end
-
-sc_post = histogram(post, bins=30, alpha=0.5, title="Samples on posterior", xlabel="Sample", ylabel="Value", label="True Posterior")
-sc_lahmc_post = histogram!(post_lahmc, bins=30, alpha=0.5, label="Sampled Posterior")
-display(sc_post)
+plot_histograms(U_rough_well, lahmc_samples, n_samples, "2D Rough Well Histogram"; hmc_samples=hmc_samples)
