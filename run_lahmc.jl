@@ -58,10 +58,22 @@ function plot_histograms(U::Function, lahmc_samples, n_samples::Int, title::Stri
     display(hist_post)
 end
 
+function print_transitions(transitions, K, n_samples, n_chains)
+    avg_transitions = (sum(transitions, dims=2))./((n_samples-1)*n_chains) # n_samples-1 as first sample is generated
+    print("Average transition rates: ")
+    for i in 1:K+1
+        if i < K + 1
+            print("L$(i): $(avg_transitions[i]) ")
+        else
+            print("F: $(avg_transitions[i])\n")
+        end
+    end
+end
+
 function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
     theta = [100, 4]
     samples = fill(NaN, n_param, n_chains, n_samples)
-    avg_transitions = fill(0, K+1, n_chains)
+    transitions = fill(0, K+1, n_chains)
     grad_evals = 0
 
     for i in 1:n_chains
@@ -69,10 +81,12 @@ function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
         lahmc = LAHMC(U, dU, q_init, epsilon, L, K, beta, n_samples)
         result = sample!(lahmc)
         samples[:,i,:] = result.samples
-        avg_transitions[:, i] = result.transitions
+        transitions[:, i] = result.transitions
         grad_evals += result.dU_count
     end
-    print("Average Acceptance Rate: ", mean(sum(avg_transitions[1:K,:]./n_samples, dims=1), dims=2)[1,1]) 
+    
+    print("Average acceptance rate: ", mean(sum(transitions[1:K,:]./(n_samples-1), dims=1), dims=2)[1,1], "\n")
+    print_transitions(transitions, K, n_samples, n_chains)
     return samples, grad_evals
 end
 
@@ -81,9 +95,9 @@ theta = [100, 4]
 epsilon = 1
 L = 10
 beta = 0.1
-n_samples = 10000
+n_samples = 200
 n_param = 2
-n_chains = 10
+n_chains = 100
 
 # LAHMC
 
