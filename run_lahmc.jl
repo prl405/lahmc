@@ -5,14 +5,6 @@ using Statistics
 include("lahmc.jl")
 include("distributions.jl")
 
-function U(X)
-    return U_rough_well(X, theta[1], theta[2])
-end
-
-function dU(X)
-    return dU_rough_well(X, theta[1], theta[2])
-end
-
 function calculate_autocorrelation(samples)
     n_samples = length(samples[1,:])
     acf = zeros(n_samples)
@@ -37,13 +29,13 @@ function calculate_looped_autocorrelation(samples)
     return acf / acf[1]
 end
 
-function plot_histograms(U::Function, lahmc_samples, n_samples::Int, title::String; bin_width=0.2, alpha=0.5, hmc_samples=nothing)
+function plot_histograms(U::Function, init_q::Function, lahmc_samples, n_samples::Int, title::String; bin_width=0.2, alpha=0.5, hmc_samples=nothing)
     post_true = fill(NaN, n_samples)
     post_lahmc = fill(NaN, n_samples)
     post_hmc = fill(NaN, n_samples)
 
     for k in 1:n_samples 
-        post_true[k] = U(rand(2)*100) # Only works for Rough Well
+        post_true[k] = U(init_q())
         post_lahmc[k] = U(lahmc_samples[:, 1, k])
         if !isnothing(hmc_samples)
             post_hmc[k] = U(hmc_samples[:, 1, k])
@@ -70,15 +62,14 @@ function print_transitions(transitions, K, n_samples, n_chains)
     end
 end
 
-function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
-    theta = [100, 4]
+function sample_loop(n_chains, U::Function, dU::Function, init_q::Function, epsilon, L, K, beta, n_param, n_samples)
     samples = fill(NaN, n_param, n_chains, n_samples)
     transitions = fill(0, K+1, n_chains)
     grad_evals = 0
 
     for i in 1:n_chains
-        q_init = randn(n_param)*theta[1]
-        lahmc = LAHMC(U, dU, q_init, epsilon, L, K, beta, n_samples)
+        init_sample = init_q()
+        lahmc = LAHMC(U, dU, init_sample, epsilon, L, K, beta, n_samples)
         result = sample!(lahmc)
         samples[:,i,:] = result.samples
         transitions[:, i] = result.transitions
@@ -90,28 +81,70 @@ function sample_loop(n_chains, U, dU, epsilon, L, K, beta, n_param, n_samples)
     return samples, grad_evals
 end
 
-# Input Parameters
-theta = [100, 4]
+n_samples = 10000
+n_chains = 10
 epsilon = 1
 L = 10
 beta = 0.1
-n_samples = 200
+
+######################## Rough Well #########################
+
+# rw = Rough_Well(2, 100, 4)
+# function U(X)
+#     return U_rough_well(X, rw)
+# end
+
+# function dU(X)
+#     return dU_rough_well(X, rw)
+# end
+# function init_q()
+#     return init_rough_well(rw)
+# end
+# n_param = 2
+
+
+# lahmc_samples, grad_count = sample_loop(n_chains, U, dU, init_q, epsilon, L, 4, beta, n_param, n_samples)
+# autocorrelation_lahmc = calculate_looped_autocorrelation(lahmc_samples)
+
+# gradient_evaluations_lahmc = LinRange(0, grad_count/n_chains, length(autocorrelation_lahmc))
+
+# plt_lahmc_ac = plot(gradient_evaluations_lahmc, autocorrelation_lahmc, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation", label="LAHMC")
+
+# hmc_samples, grad_count = sample_loop(n_chains, U, dU, init_q, epsilon, L, 1, beta, n_param, n_samples)
+# autocorrelation_hmc = calculate_looped_autocorrelation(hmc_samples)
+
+# gradient_evaluations_hmc = LinRange(0, grad_count/n_chains, length(autocorrelation_hmc))
+
+# plt_hmc_ac = plot!(gradient_evaluations_hmc, autocorrelation_hmc, label="HMC")
+
+# display(plt_lahmc_ac)
+
+# plot_histograms(U, init_q, lahmc_samples, n_samples, "2D Rough Well Histogram"; hmc_samples=hmc_samples)
+
+######################## Gaussian ##############################
+
+gauss_2d = Gaussian(2, 0.6)
+
+function U(X)
+    return U_gaussian(X, gauss_2d)
+end
+
+function dU(X)
+    return dU_gaussian(X, gauss_2d)
+end
+function init_q()
+    return init_gaussian(gauss_2d)
+end
 n_param = 2
-n_chains = 100
 
-# LAHMC
-
-lahmc_samples, grad_count = sample_loop(n_chains, U, dU, epsilon, L, 4, beta, n_param, n_samples)
+lahmc_samples, grad_count = sample_loop(n_chains, U, dU, init_q, epsilon, L, 4, beta, n_param, n_samples)
 autocorrelation_lahmc = calculate_looped_autocorrelation(lahmc_samples)
 
 gradient_evaluations_lahmc = LinRange(0, grad_count/n_chains, length(autocorrelation_lahmc))
 
 plt_lahmc_ac = plot(gradient_evaluations_lahmc, autocorrelation_lahmc, title="Gradient Evaluations vs Autocorrelation", xlabel="Gradient Evaluations", ylabel="Autocorrelation", label="LAHMC")
 
-
-# HMC
-
-hmc_samples, grad_count = sample_loop(n_chains, U, dU, epsilon, L, 1, beta, n_param, n_samples)
+hmc_samples, grad_count = sample_loop(n_chains, U, dU, init_q, epsilon, L, 1, beta, n_param, n_samples)
 autocorrelation_hmc = calculate_looped_autocorrelation(hmc_samples)
 
 gradient_evaluations_hmc = LinRange(0, grad_count/n_chains, length(autocorrelation_hmc))
@@ -120,4 +153,4 @@ plt_hmc_ac = plot!(gradient_evaluations_hmc, autocorrelation_hmc, label="HMC")
 
 display(plt_lahmc_ac)
 
-plot_histograms(U_rough_well, lahmc_samples, n_samples, "2D Rough Well Histogram"; hmc_samples=hmc_samples)
+plot_histograms(U, init_q, lahmc_samples, n_samples, "2D Gaussian Histogram")
