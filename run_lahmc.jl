@@ -29,13 +29,15 @@ function calculate_looped_autocorrelation(samples)
     return acf / acf[1]
 end
 
-function plot_histograms(U::Function, init_q::Function, lahmc_samples, n_samples::Int, title::String; bin_width=0.2, alpha=0.5, hmc_samples=nothing)
-    post_true = fill(NaN, n_samples)
+function plot_histograms(U::Function, init_q::Function, lahmc_samples, n_samples::Int, title::String; bin_width=0.2, alpha=0.5, hmc_samples=nothing, data=nothing)
+    post_true = isnothing(data) ? fill(NaN, n_samples) : data
     post_lahmc = fill(NaN, n_samples)
     post_hmc = fill(NaN, n_samples)
 
     for k in 1:n_samples 
-        post_true[k] = U(init_q())
+        if isnothing(data)
+            post_true[k] = U(init_q())
+        end
         post_lahmc[k] = U(lahmc_samples[:, 1, k])
         if !isnothing(hmc_samples)
             post_hmc[k] = U(hmc_samples[:, 1, k])
