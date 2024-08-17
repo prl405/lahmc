@@ -22,7 +22,7 @@ function calculate_looped_autocorrelation(samples)
     acf = zeros(n_samples-1)
     acf[1] = mean(samples.^2)
     
-    for lag in 2:(n_samples-2)
+    for lag in 2:(n_samples-1)
         acf[lag] = mean(samples[:, :, 1:end-lag] .* samples[:, :, lag+1:end])
     end
     

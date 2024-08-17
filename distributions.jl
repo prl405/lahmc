@@ -28,14 +28,13 @@ mutable struct Gaussian
     conditioning::Array
 end
 
-function Gaussian(dims=2, log_conditioning=0.6)
+function Gaussian(dims=2, log_conditioning=6)
     conditioning = 10 .^ LinRange(-log_conditioning, 0, dims)
     J = Diagonal(conditioning)
     Gaussian(dims, J, conditioning)
 end
 
 function init_gaussian(gaussian::Gaussian)
-    # return (inv(sqrt.(gaussian.conditioning)))*randn(gaussian.dims)
     return (1.0 ./ sqrt.(gaussian.conditioning)) .* randn(gaussian.dims)
 end
 
@@ -48,12 +47,3 @@ function dU_gaussian(X, gaussian::Gaussian)
     J = gaussian.J
     return (J*(X/2)) + (transpose(J)*(X/2))
 end
-
-# conditioning = 10**np.linspace(-log_conditioning, 0, ndims)
-# 		self.J = np.diag(conditioning)
-# 		self.Xinit = (1./np.sqrt(conditioning).reshape((-1,1))) * np.random.randn(ndims,nbatch)
-# 		self.description = '%dD Anisotropic Gaussian, %g conditioning'%(ndims, 10**log_conditioning)
-# 	def E(self, X):
-# 		return np.sum(X*np.dot(self.J,X), axis=0).reshape((1,-1))/2.
-# 	def dEdX(self, X):
-# 		return np.dot(self.J,X)/2. + np.dot(self.J.T,X)/2.
