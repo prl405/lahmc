@@ -1,23 +1,13 @@
 using Random
 using Plots
 using Statistics
+using DataFrames
 
 include("lahmc.jl")
 include("distributions.jl")
 
-function calculate_autocorrelation(samples)
-    n_samples = length(samples[1,:])
-    acf = zeros(n_samples)
-    acf[1] = mean(samples.^2)
 
-    for lag in 2:(n_samples-1)
-        acf[lag] = mean(vcat(samples[:, 1:end-lag] .* samples[:, lag+1:end]...))
-    end
-    
-    return acf/acf[1]
-end
-
-function calculate_looped_autocorrelation(samples)
+function autocorrelation(samples)
     n_samples = size(samples, 3)
     acf = zeros(n_samples-1)
     acf[1] = mean(samples.^2)
@@ -52,21 +42,24 @@ function plot_histograms(U::Function, init_q::Function, lahmc_samples, n_samples
     display(hist_post)
 end
 
-function print_transitions(transitions, K, n_samples, n_chains)
+function calculate_transitions(transitions, K, n_samples, n_chains)
     avg_transitions = (sum(transitions, dims=2))./((n_samples-1)*n_chains) # n_samples-1 as first sample is generated
-    print("Average transition rates: ")
+    
+    track_rates = Dict{String, Float64}()
+    track_rates["avg_accept"] = mean(sum(transitions[1:K,:]./(n_samples-1), dims=1), dims=2)[1,1]
     for i in 1:K+1
         if i < K + 1
-            print("L$(i): $(avg_transitions[i]) ")
+            track_rates["L$(i)"] = avg_transitions[i]
         else
-            print("F: $(avg_transitions[i])\n")
+            track_rates["F"] = avg_transitions[i]
         end
     end
+    return track_rates
 end
 
 function sample_loop(n_chains, U::Function, dU::Function, init_q::Function, epsilon, L, K, beta, n_param, n_samples)
     samples = fill(NaN, n_param, n_chains, n_samples)
-    transitions = fill(0, K+1, n_chains)
+    trans = fill(0, K+1, n_chains)
     grad_evals = 0
 
     for i in 1:n_chains
@@ -74,11 +67,13 @@ function sample_loop(n_chains, U::Function, dU::Function, init_q::Function, epsi
         lahmc = LAHMC(U, dU, init_sample, epsilon, L, K, beta, n_samples)
         result = sample!(lahmc)
         samples[:,i,:] = result.samples
-        transitions[:, i] = result.transitions
+        trans[:, i] = result.transitions
         grad_evals += result.dU_count
     end
     
-    print("Average acceptance rate: ", mean(sum(transitions[1:K,:]./(n_samples-1), dims=1), dims=2)[1,1], "\n")
-    print_transitions(transitions, K, n_samples, n_chains)
-    return samples, grad_evals
+    output = Dict{Any, Any}()
+    output[:samples] = samples
+    output[:grad_evals] = grad_evals
+    output[:trans] = calculate_transitions(trans, K, n_samples, n_chains)
+    return output
 end
