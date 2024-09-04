@@ -45,16 +45,11 @@ end
 function calculate_transitions(transitions, K, n_samples, n_chains)
     avg_transitions = (sum(transitions, dims=2))./((n_samples-1)*n_chains) # n_samples-1 as first sample is generated
     
-    track_rates = Dict{String, Float64}()
-    track_rates["avg_accept"] = mean(sum(transitions[1:K,:]./(n_samples-1), dims=1), dims=2)[1,1]
-    for i in 1:K+1
-        if i < K + 1
-            track_rates["L$(i)"] = avg_transitions[i]
-        else
-            track_rates["F"] = avg_transitions[i]
-        end
-    end
-    return track_rates
+    rates = fill(NaN, K+2)
+    rates[K+2] = mean(sum(transitions[1:K,:]./(n_samples-1), dims=1), dims=2)[1,1]
+    rates[1:K+1] = avg_transitions
+    
+    return rates
 end
 
 function sample_loop(n_chains, U::Function, dU::Function, init_q::Function, epsilon, L, K, beta, n_param, n_samples)

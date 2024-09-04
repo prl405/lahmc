@@ -65,48 +65,6 @@ function sample!(lahmc::LAHMC)
     return lahmc
 end
 
-function burn_in!(lahmc::LAHMC)
-	p = randn(lahmc.n_param)
-	accept = 0
-    for i in 1:lahmc.n_samples-1
-		q_chain = [lahmc.samples[:, i]]
-		p_chain = [p]
-		# use the same random number for comparison for the entire chain
-		rand_comparison = rand(1)[1]
-		# the current cumulative probability of acceptance
-		p_cum = 0
-		# the cumulative probability matrix, so we only need to visit each leaf once when recursing
-		C = ones((lahmc.K+1, lahmc.K+1))*NaN
-        
-        for j in 1:lahmc.K
-			proposed_q, proposed_p, lahmc.dU_count = leapfrog(q_chain[end], p_chain[end], lahmc.epsilon, lahmc.L, lahmc.dU, lahmc.dU_count)
-			push!(q_chain, proposed_q)
-			push!(p_chain, proposed_p)
-
-			# recursively calculate the cumulative probability of doing this many leaps
-			p_cum, Cl = leap_prob_recurse(q_chain, p_chain, C[1:j+1, 1:j+1], lahmc.U)
-			C[1:j+1, 1:j+1] = Cl
-			
-			accept = p_cum >= rand_comparison ? accept + 1 : accept
-
-			lahmc.samples[:, i+1] = q_chain[end]
-			p = p_chain[end]
-
-			if accept == 5
-				print("Accepted sample found after $(i) iterations.\n")
-				return lahmc.samples[:, i+1]
-			end
-
-        end
-		
-		# corrupt the momentum
-		p = -p
-		p = p*sqrt(1-lahmc.beta) + randn(lahmc.n_param)*sqrt(lahmc.beta)  
-    end
-
-    return lahmc
-end
-
 function leap_prob_recurse(q_chain, p_chain, C, U)
 	"""
 	Recursively compute to cumulative probability of transitioning from
